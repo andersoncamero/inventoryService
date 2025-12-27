@@ -81,10 +81,6 @@ CREATE INDEX idx_event_timestamp ON events (event_timestamp);
 - ✅ Inserciones rápidas (un solo INSERT)
 - ✅ Mantenimiento simplificado
 
-**Desventajas:**
-- ⚠️ Espacio de almacenamiento (columnas NULL)
-- ⚠️ Validación limitada (no se pueden aplicar NOT NULL en campos específicos)
-- ⚠️ Escalabilidad limitada (tabla puede volverse muy ancha)
 
 **Por qué NO otras estrategias:**
 - **Table-Per-Class**: Requeriría UNION ALL complejos para consultas polimórficas
