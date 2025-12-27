@@ -23,15 +23,12 @@ public class EventService {
 
     @Transactional
     public void createEvent(CreateEventRequest r) {
-        // Validar licencia antes de crear el evento
         validateLicense(r.getLicenseId(), r.getCreatedBy(), r.getWarehouseId());
-
         OperationalEvent event = switch (r.getEventType()){
             case COLLECTION -> {
                 CollectionOperationalEvent e = new CollectionOperationalEvent();
                 e.setSupplierId(r.getSupplierId());
                 e.setCollectedQuantity(r.getCollectedQuantity());
-                e.setCreatedBy(r.getCreatedBy());
                 yield e;
 
             }
@@ -40,8 +37,6 @@ public class EventService {
                 e.setSourceWareHouseId(r.getSourceWarehouseId());
                 e.setTargetWarehouseId(r.getTargetWarehouseId());
                 e.setTransferredQuantity(r.getTransferredQuantity());
-                e.setCreatedBy(r.getCreatedBy());
-
                 yield e;
 
             }
@@ -50,23 +45,20 @@ public class EventService {
                 e.setCustomerId(r.getCustomerId());
                 e.setSoldQuantity(r.getSoldQuantity());
                 e.setUnitPrice(r.getUnitPrice());
-                e.setCreatedBy(r.getCreatedBy());
-
                 yield e;
             }
             case ADJUSTMENT -> {
                 AdjustmentOperationalEvent e = new AdjustmentOperationalEvent();
                 e.setReason(r.getReason());
                 e.setAdjustedQuantity(r.getAdjustedQuantity());
-                e.setCreatedBy(r.getCreatedBy());
                 yield e;
             }
         };
 
-        // Asignar campos comunes a todos los eventos
         event.setLicenseId(r.getLicenseId());
         event.setWarehouseIdl(r.getWarehouseId());
         event.setItemId(r.getItemId());
+        event.setCreatedBy(r.getCreatedBy());
 
         repository.save(event);
     }

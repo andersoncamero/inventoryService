@@ -41,7 +41,7 @@ public class ApiExceptionHandler {
                         error.getDefaultMessage(),
                         null
                 ))
-                .collect(Collectors.toList());
+                .toList();
 
         fieldErrors.addAll(globalErrors);
 

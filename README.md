@@ -101,18 +101,15 @@ CREATE INDEX idx_event_timestamp ON events (event_timestamp);
 - Switch expressions para crear instancias polimórficas
 
 **Creación de Instancias:**
-```24:72:src/main/java/com/inventoryservice/inventoryservice/domain/service/EventService.java
+```24:64:src/main/java/com/inventoryservice/inventoryservice/domain/service/EventService.java
 @Transactional
 public void createEvent(CreateEventRequest r) {
-    // Validar licencia antes de crear el evento
     validateLicense(r.getLicenseId(), r.getCreatedBy(), r.getWarehouseId());
-
     OperationalEvent event = switch (r.getEventType()){
         case COLLECTION -> {
             CollectionOperationalEvent e = new CollectionOperationalEvent();
             e.setSupplierId(r.getSupplierId());
             e.setCollectedQuantity(r.getCollectedQuantity());
-            e.setCreatedBy(r.getCreatedBy());
             yield e;
         }
         case TRANSFER -> {
@@ -120,7 +117,6 @@ public void createEvent(CreateEventRequest r) {
             e.setSourceWareHouseId(r.getSourceWarehouseId());
             e.setTargetWarehouseId(r.getTargetWarehouseId());
             e.setTransferredQuantity(r.getTransferredQuantity());
-            e.setCreatedBy(r.getCreatedBy());
             yield e;
         }
         case SALE -> {
@@ -128,14 +124,12 @@ public void createEvent(CreateEventRequest r) {
             e.setCustomerId(r.getCustomerId());
             e.setSoldQuantity(r.getSoldQuantity());
             e.setUnitPrice(r.getUnitPrice());
-            e.setCreatedBy(r.getCreatedBy());
             yield e;
         }
         case ADJUSTMENT -> {
             AdjustmentOperationalEvent e = new AdjustmentOperationalEvent();
             e.setReason(r.getReason());
             e.setAdjustedQuantity(r.getAdjustedQuantity());
-            e.setCreatedBy(r.getCreatedBy());
             yield e;
         }
     };
@@ -144,6 +138,7 @@ public void createEvent(CreateEventRequest r) {
     event.setLicenseId(r.getLicenseId());
     event.setWarehouseIdl(r.getWarehouseId());
     event.setItemId(r.getItemId());
+    event.setCreatedBy(r.getCreatedBy());
 
     repository.save(event);
 }
@@ -160,7 +155,7 @@ List<OperationalEvent> events = repository.findAll();
 SELECT * FROM events;
 ```
 - Una sola query, sin JOINs
-- Trae todas las columnas (incluyendo NULLs)
+- Trae todas las columnas
 
 **Query para Tipo Concreto:**
 ```java
@@ -177,7 +172,7 @@ SELECT * FROM events WHERE event_type = 'SALE';
 **Rendimiento:**
 - ✅ Excelente para consultas polimórficas
 - ✅ Eficiente para agregaciones
-- ⚠️ Overhead de columnas NULL en consultas del tipo base
+
 
 
 ## PARTE 3 — SQL CRÍTICO (NO SE ACEPTA LÓGICA EN JAVA)
@@ -240,7 +235,7 @@ GroupAggregate
 ```
 - ✅ Sin Sort (datos ya ordenados por índice)
 - ✅ Sin Full Table Scan
-- ✅ Tiempo: < 2s para 10M eventos
+- ✅ Tiempo: < 2s para 10M eventos aproximadamente
 
 **Sin Índice (Subóptimo):**
 ```
@@ -340,7 +335,36 @@ public boolean isValidAdjustmentEvent() { ... }
 - ✅ SALE: `customerId`, `soldQuantity` y `unitPrice` requeridos
 - ✅ ADJUSTMENT: `reason` (máx. 255 caracteres) y `adjustedQuantity` requeridos
 
-**Ejemplo Request (SALE):**
+**Ejemplos de Request por Tipo de Evento:**
+
+**COLLECTION (Recolección):**
+```json
+{
+  "eventType": "COLLECTION",
+  "licenseId": 123,
+  "warehouseId": 456,
+  "itemId": 789,
+  "createdBy": 1,
+  "supplierId": 300,
+  "collectedQuantity": 50.750
+}
+```
+
+**TRANSFER (Transferencia):**
+```json
+{
+  "eventType": "TRANSFER",
+  "licenseId": 123,
+  "warehouseId": 456,
+  "itemId": 789,
+  "createdBy": 1,
+  "sourceWarehouseId": 456,
+  "targetWarehouseId": 789,
+  "transferredQuantity": 25.500
+}
+```
+
+**SALE (Venta):**
 ```json
 {
   "eventType": "SALE",
@@ -353,6 +377,21 @@ public boolean isValidAdjustmentEvent() { ... }
   "unitPrice": 25.99
 }
 ```
+
+**ADJUSTMENT (Ajuste):**
+```json
+{
+  "eventType": "ADJUSTMENT",
+  "licenseId": 123,
+  "warehouseId": 456,
+  "itemId": 789,
+  "createdBy": 1,
+  "reason": "Ajuste por inventario físico - Diferencia encontrada en conteo",
+  "adjustedQuantity": -5.250
+}
+```
+
+**Nota:** El campo `adjustedQuantity` puede ser positivo (aumento de inventario) o negativo (disminución de inventario).
 
 ### 2. Validación de Campos
 
@@ -411,8 +450,8 @@ Las validaciones condicionales se implementan con `@AssertTrue` y se ejecutan so
 - ✅ Validar que el almacén pertenece a la licencia
 
 **Implementación:**
-```75:85:src/main/java/com/inventoryservice/inventoryservice/domain/service/EventService.java
-private void validateLicense(long licenseId, long createdBy, long warehouseId) {
+```67:77:src/main/java/com/inventoryservice/inventoryservice/domain/service/EventService.java
+private void validateLicense(Long licenseId, Long createdBy, Long warehouseId) {
     if (!licenseService.isLicenseValid(licenseId)) {
         throw new InvalidLicenseException("La licencia no es válida o no está activa");
     }
@@ -426,7 +465,7 @@ private void validateLicense(long licenseId, long createdBy, long warehouseId) {
 ```
 
 **LicenseService:**
-```5:26:src/main/java/com/inventoryservice/inventoryservice/domain/service/LicenseService.java
+```4:26:src/main/java/com/inventoryservice/inventoryservice/domain/service/LicenseService.java
 @Service
 public class LicenseService {
     public boolean isLicenseValid(long licenseId) {
@@ -468,13 +507,14 @@ El sistema utiliza **Event Sourcing**:
 | ADJUSTMENT | `+/-adjusted_quantity` |
 | TRANSFER | `-transferred_quantity` (origen) / `+transferred_quantity` (destino) |
 
-**Nota:** ✅ Los campos comunes (`licenseId`, `warehouseId`, `itemId`) se asignan correctamente después de crear la instancia del evento:
+**Nota:** ✅ Los campos comunes (`licenseId`, `warehouseId`, `itemId`, `createdBy`) se asignan correctamente después de crear la instancia del evento:
 
-```66:69:src/main/java/com/inventoryservice/inventoryservice/domain/service/EventService.java
+```58:61:src/main/java/com/inventoryservice/inventoryservice/domain/service/EventService.java
 // Asignar campos comunes a todos los eventos
 event.setLicenseId(r.getLicenseId());
 event.setWarehouseIdl(r.getWarehouseId());
 event.setItemId(r.getItemId());
+event.setCreatedBy(r.getCreatedBy());
 ```
 
 ### 5. Persistencia del Evento
@@ -740,7 +780,7 @@ Response 201 CREATED
 
 **Puntos Críticos Completados:**
 1. ✅ **Validación de Licencia**: Implementada con `LicenseService` y validación en `EventService`
-2. ✅ **Asignación de Campos Comunes**: Corregida en `EventService` (líneas 67-69)
+2. ✅ **Asignación de Campos Comunes**: Implementada en `EventService` (líneas 58-61) incluyendo `licenseId`, `warehouseId`, `itemId` y `createdBy`
 3. ✅ **Manejo de Errores de Licencia**: Implementado en `ApiExceptionHandler`
 4. ✅ **Validación de Campos**: Implementada con anotaciones Bean Validation (`@NotNull`, `@Min`, `@AssertTrue`)
 5. ✅ **Manejo de Errores de Validación**: Implementado con `ErrorResponse` y manejo de `MethodArgumentNotValidException`
@@ -762,7 +802,7 @@ Response 201 CREATED
 
 - ✅ **Índice obligatorio**: `idx_inventory_aggregation` en `(license_id, warehouse_id, item_id)`
 - ✅ **Validación de licencia**: Implementada con `LicenseService` y validación en `EventService`
-- ✅ **Asignación de campos comunes**: Corregida en `EventService`
+- ✅ **Asignación de campos comunes**: Implementada en `EventService` (incluyendo `licenseId`, `warehouseId`, `itemId` y `createdBy`)
 - ✅ **Manejo de errores de licencia**: Implementado en `ApiExceptionHandler`
 - ✅ **Validación de campos**: Implementada con Bean Validation (`@NotNull`, `@Min`, `@AssertTrue`)
 - ✅ **Manejo de errores de validación**: Implementado con `ErrorResponse` estructurado
@@ -776,7 +816,30 @@ Response 201 CREATED
 - Sin tabla de "inventario actual" que se actualice
 
 **Stack Tecnológico:**
-- Java 21 + Spring Boot
+- Java 21 + Spring Boot 4.0.1
 - JPA/Hibernate con Single Table Inheritance
 - PostgreSQL con índices optimizados
 - REST API con manejo de errores centralizado
+- Bean Validation para validación de requests
+
+### Configuración
+
+**Requisitos del Sistema:**
+- Java 21 o superior
+- PostgreSQL (configurado en `application.properties`)
+- Gradle (incluido wrapper)
+
+**Configuración de Base de Datos:**
+El servicio está configurado para conectarse a PostgreSQL en `localhost:5432` con las credenciales especificadas en `application.properties`. La base de datos se inicializa automáticamente mediante `spring.jpa.hibernate.ddl-auto=update`.
+
+**Puerto del Servidor:**
+El servicio se ejecuta en el puerto `8090` con el contexto `/` (configurado en `application.properties`).
+
+**Endpoints Disponibles:**
+- `POST /api/events` - Crear un nuevo evento de inventario
+
+**Nota sobre LicenseService:**
+El `LicenseService` actualmente implementa validaciones básicas (verificación de IDs > 0). Para producción, debe extenderse para consultar una base de datos o servicio externo de licencias que valide:
+- Existencia y estado activo de la licencia
+- Permisos del usuario sobre la licencia
+- Pertenencia del almacén a la licencia

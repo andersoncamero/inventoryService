@@ -43,7 +43,7 @@ public class CreateEventRequest {
 
     @AssertTrue(message = "Para eventos COLLECTION, supplierId y collectedQuantity son requeridos")
     public boolean isValidCollectionEvent() {
-        if (eventType == null) return true; // Se valida con @NotNull
+        if (eventType == null) return true;
         if (eventType != EventType.COLLECTION) return true;
         return supplierId != null && supplierId > 0 
             && collectedQuantity != null 
@@ -63,7 +63,7 @@ public class CreateEventRequest {
 
     @AssertTrue(message = "Para eventos SALE, customerId, soldQuantity y unitPrice son requeridos")
     public boolean isValidSaleEvent() {
-        if (eventType == null) return true; // Se valida con @NotNull
+        if (eventType == null) return true;
         if (eventType != EventType.SALE) return true;
         return customerId != null && customerId > 0
             && soldQuantity != null 
@@ -74,7 +74,7 @@ public class CreateEventRequest {
 
     @AssertTrue(message = "Para eventos ADJUSTMENT, reason y adjustedQuantity son requeridos. La razón no puede exceder 255 caracteres")
     public boolean isValidAdjustmentEvent() {
-        if (eventType == null) return true; // Se valida con @NotNull
+        if (eventType == null) return true;
         if (eventType != EventType.ADJUSTMENT) return true;
         return reason != null && !reason.trim().isEmpty() && reason.length() <= 255
             && adjustedQuantity != null 
