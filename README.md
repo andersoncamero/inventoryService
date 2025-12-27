@@ -843,3 +843,34 @@ El `LicenseService` actualmente implementa validaciones básicas (verificación 
 - Existencia y estado activo de la licencia
 - Permisos del usuario sobre la licencia
 - Pertenencia del almacén a la licencia
+
+### Cómo Ejecutar el Proyecto
+
+**Requisitos Previos:**
+1. **PostgreSQL en ejecución**: El servicio requiere PostgreSQL corriendo en `localhost:5432` (según configuración en `application.properties`)
+2. **Base de datos creada**: Aunque el servicio usa `spring.jpa.hibernate.ddl-auto=update`, la base de datos debe existir previamente
+3. **Java 21**: Asegúrate de tener Java 21 o superior instalado
+
+**Opción 1: Usando Gradle Wrapper (Recomendado)**
+```bash
+./gradlew bootRun
+```
+
+**Opción 2: Compilar y Ejecutar el JAR**
+```bash
+# Compilar el proyecto
+./gradlew build
+
+# Ejecutar el JAR generado
+java -jar build/libs/inventoryservice-0.0.1-SNAPSHOT.jar
+```
+
+**Verificación:**
+Una vez iniciado, el servicio estará disponible en:
+- **URL Base**: `http://localhost:8090`
+- **Endpoint**: `POST http://localhost:8090/api/events`
+
+**Nota:** Si usas Docker Compose, puedes iniciar PostgreSQL con:
+```bash
+docker-compose up -d
+```
